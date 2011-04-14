@@ -1,0 +1,351 @@
+<?php
+
+/**
+ * hook_entity_info
+ */
+function sample_entity_info() {
+  return array(
+    'sample' => array(
+      'label' => t('Sample Entity'),
+      //'controller class' => 'DrupalDefaultEntityController', // this is the default
+      'base table' => 'sample',
+      'revision table' => 'sample_revision',
+      //'static cache' => TRUE, // this is the default
+      //'field cache' => TRUE, // this is the default
+      'load hook' => 'sample_load', // function to use to load data for this entity
+      'uri callback' => 'sample_uri', // given an entity, this function will return the data for constructing the path to the detail of the entity
+      //'label callback' => 'sample_label', // only needed if the label for the entity isn't a straight property
+      'fieldable' => TRUE, // let this entity be extended with fields
+      'entity keys' => array( // give field api the info it needs to interact with the entity
+        'label' => 'mech_name', // the property that contains the name for each instance of this entity
+        'id' => 'sid', // the property that uniquely identifies this entity (must be numeric)
+        'revision' => 'rev_id', // if the entity keeps revisions, the property identifying the revision id
+        //'bundle' => 'type', // if the entity has multiple bundles, the property that identifies the bundle, type is the bundle for the node entity as an example
+      ),
+      /* if the paths defined in the bundle section contain wildcards indicating a loadable object this indicates the property
+         of the bundle necessary to construct the real path
+      'bundle keys' => array(
+        'bundle' => 'type',
+      ),
+      */
+      'bundles' => array( // if you have only one bundle, then key it based on your entity key
+        'sample' => array(
+          'label' => t('Default Bundle'), // human readable name
+          'admin' => array(
+            'path' => 'admin/structure/sample', // a path you'll define in hook menu later for the admin page of this bundle, this is where the manage fields tabs will get tacked on if this is a fieldable entity
+            //'real path' => 'admin/structure/sample/sample', // if path were admin/structure/sample/%sample_type then this would be required and the second sample would represent the bundle key, this is useful for entities which allow dynamic bundle creation
+            //'bundle argument' => 3, // if real path is used, point at the arg which represents the bundle
+            //'access callback' => 'user_access', // user access is the default
+            'access arguments' => array('administer site configuration'), // probably best to define an explicit permission for controlling the structure of this entity, for node this is 'administer content types'
+          ),
+        ),
+      ),
+      'view modes' => array( // define what viewing modes your entity will support
+        'full' => array( // key for the view mode
+          'label' => t('Full'), // human readable name
+          'custom settings' => FALSE, // use custom settings for this view mode out of the box, FALSE indicates to use the implicit default settings
+          // see the node_add_body_field function in node.module and look at the display portion of each entity for an idea of how this is used, note the default and teaser keys
+        ),
+        'teaser' => array(
+          'label' => t('Teaser'),
+          'custom settings' => FALSE,
+        ),
+      ),
+    ),
+  );
+}
+
+/**
+ * define the loadng function specified in the load hook key in sample_entity_info
+ * TODO: need to determine what should be returned if the id doesn't exist
+ */
+function sample_load($sample_id = NULL, $reset = FALSE) {
+  $ids = (isset($sample_id) ? array($sample_id) : array());
+  $samples = sample_load_multiple($ids, NULL, $reset);
+  return $samples[$sample_id];
+}
+
+/**
+ * define a function for loading multiple entities at once so entity_load can be leveraged
+ */
+function sample_load_multiple($ids = array(), $conditions = array(), $reset = FALSE) {
+  return entity_load('sample', $ids, $conditions, $reset);
+}
+
+/**
+ * define the function specified in the uri callback key in sample_entity_info
+ * this needs to match up with a hook menu path defined for showing the details of an entity
+ */
+function sample_uri($sample_entity_instance) {
+  return array('path' => 'sample/' . $sample_entity_instance->sid);
+}
+
+/**
+ * hook menu
+ */
+function sample_menu() {
+  return array(
+    // the admin path for the entity, must match with the path for one of your bundles
+    'admin/structure/sample' => array(
+      'title' => 'Administer Sample Structure',
+      'description' => 'Adjust the structure of the sample entity, add fields, etc. Similar to manage content types for nodes',
+      'page callback' => 'sample_admin',
+      'access arguments' => array('administer site configuration'),
+    ),
+    'sample' => array(
+      'title' => 'Sample Instances',
+      'description' => 'List all instances of this entity, this is admin/content for nodes',
+      'page callback' => 'sample_list',
+      'access arguments' => array('view sample'),
+    ),
+    'sample/add' => array(
+      'title' => 'Add a sample',
+      'description' => 'Add a new instance of this entity, this is node/add for nodes',
+      'page callback' => 'sample_add',
+      'access arguments' => array('add sample'),
+    ),
+    'sample/%sample' => array(
+      'title callback' => 'sample_title',
+      'title arguments' => array(1),
+      'description' => 'View an instance of this entity, this is node/%node for nodes',
+      'page callback' => 'sample_view',
+      'page arguments' => array(1),
+      'access arguments' => array('view sample'),
+      'type' => MENU_CALLBACK,
+    ),
+    'sample/%sample/view' => array(
+      'title' => 'View',
+      'type' => MENU_DEFAULT_LOCAL_TASK,
+      'weight' => -10,
+    ),
+    'sample/%sample/edit' => array(
+      'title' => 'Edit',
+      'description' => 'Edit an instance of this entity, this is node/$node/edit for nodes',
+      'page callback' => 'drupal_get_form',
+      'page arguments' => array('sample_form', 1),
+      'access arguments' => array('edit sample'),
+      'type' => MENU_LOCAL_TASK,
+    ),
+  );
+}
+
+/**
+ * administration page for this entity (or a specific bundle if your entity supports them)
+ */
+function sample_admin() {
+  return t('Sample Admin Page');
+}
+
+/**
+ * list all the instances of this entity
+ */
+function sample_list() {
+  $samples = sample_load_multiple(FALSE); // load them all
+  $h = array(t('Name'), t('Message'));
+  $t = array();
+  foreach($samples as $s) {
+    $r = array();
+    $r[] = l($s->mech_name, 'sample/' . $s->sid);
+    $r[] = $s->message;
+    $t[] = $r;
+  }
+  return theme('table', array('header' => $h, 'rows' => $t));
+}
+
+/**
+ * page for adding an instance of your entity
+ */
+function sample_add() {
+  $sample = sample_default();
+  return drupal_get_form('sample_form', $sample);
+}
+
+/**
+ * convenience function for creating a blank entity
+ */
+function sample_default() {
+  $sample = new stdclass();
+  $sample->sid = NULL;
+  $sample->mech_name = NULL;
+  $sample->message = NULL;
+  return $sample;
+}
+
+/**
+ * view your entity
+ */
+function sample_view($sample) {
+  $view_mode = 'full';
+  $type = 'sample';
+  $bundle = 'sample';
+  $display = 'default';
+
+  // add additional view data for fields and entities that isn't normally pulled on a load
+  field_attach_prepare_view($type, array($sample->sid => $sample), $view_mode);
+  entity_prepare_view($type, array($sample->sid => $sample));
+
+  $build = array(
+    'mech_name' => array('#markup' => $sample->mech_name, '#prefix' => '<div>', '#suffix' => '</div>'),
+    'message' => array('#markup' => $sample->message, '#prefix' => '<div>', '#suffix' => '</div>'),
+  );
+
+  // honor custom settings for positioning on extra fields, this entire section
+  // can be dropped if this entity does not allow extra settings
+  $view_mode_settings = field_view_mode_settings($type, $bundle);
+  if (isset($view_mode_settings) && isset($view_mode_settings[$view_mode]) && $view_mode_settings[$view_mode]['custom_settings']) {
+    $display = $view_mode;
+  }
+  $bundle_settings = variable_get('field_bundle_settings', array());
+  // if no custom settings have been sved for this entity, load default info and build a structure
+  // in the form of the field_bundle_settings variable
+  if (!isset($bundle_settings) || !isset($bundle_settings[$type]) || !isset($bundle_settings[$type][$bundle])) {
+    $bundle_settings = field_info_extra_fields($type, $bundle, 'display');
+    $tmp = array();
+    foreach ($bundle_settings as $key => $data) {
+      $tmp[$type][$bundle]['extra_fields']['display'][$key][$display] = $data['display'][$display];
+    }
+    $bundle_settings = $tmp;
+  }
+  // pull the bundle settings and apply to each extra field in our build array
+  $extra_field_settings = $bundle_settings[$type][$bundle]['extra_fields']['display'];
+  foreach ($extra_field_settings as $key => $settings) {
+    if ($settings[$display]['visible'] === FALSE) {
+      unset($build[$key]);
+    }
+    else {
+      $build[$key]['#weight'] = $settings[$display]['weight'];
+    }
+  }
+
+  // add in the renderable field data
+  $build += field_attach_view($type, $sample, $view_mode);
+
+  // allow other modules to affect display
+  module_invoke_all('entity_view', $sample, 'sample', $view_mode);
+  drupal_alter(array('entity_view'), $build, $sample);
+  return $build;
+}
+
+/**
+ * define a title callback specified in hook menu
+ */
+function sample_title($sample) {
+  drupal_set_title(t('Sample @sample', array('@sample' => $sample->mech_name)));
+}
+
+/**
+ * form for adding/editing an entity
+ */
+function sample_form($form, &$form_state, $sample) {
+  if ($sample->sid) {
+    $form['sid'] = array(
+      '#type' => 'hidden',
+      '#default_value' => $sample->sid,
+    );
+  }
+
+  $form['mech_name'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Machine Name'),
+    '#description' => t('The machine name for this instance'),
+    '#max_length' => 50,
+    '#default_value' => $sample->mech_name,
+  );
+
+  $form['message'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Message'),
+    '#description' => t('Some data you care about saving'),
+    '#max_length' => 50,
+    '#default_value' => $sample->message,
+  );
+
+  field_attach_form('sample', $sample, $form, $form_state);
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#default_value' => t('Save'),
+  );
+  return $form;
+}
+
+/**
+ * validate callback for sample entity editing form
+ */
+function sample_form_validate($form, &$form_state) {
+  if ($form_state['values']['sid']) {
+    $sample = sample_load($form_state['values']['sid']);
+  }
+  else {
+    $sample = sample_default();
+  }
+  field_attach_form_validate('sample', $sample, $form, $form_state);
+}
+
+/**
+ * the submit handler
+ */
+function sample_form_submit($form, &$form_state) {
+  $sample = sample_default();
+  $update = NULL;
+  if (!empty($form_state['values']['sid'])) {
+    $update = 'sid';
+    $sample->sid = $form_state['values']['sid'];;
+  }
+
+  $sample->mech_name = $form_state['values']['mech_name'];
+  $sample->message = $form_state['values']['message'];
+
+  field_attach_submit('sample', $sample, $form, $form_state);
+  // automatically revision every save
+  if ($update) {
+    drupal_write_record('sample_revision', $sample);
+    drupal_write_record('sample', $sample, $update);
+    field_attach_update('sample', $sample, $form, $form_state);
+  }
+  else {
+    drupal_write_record('sample', $sample);
+    drupal_write_record('sample_revision', $sample);
+    $update = 'sid';
+    drupal_write_record('sample', $sample, $update);
+    field_attach_insert('sample', $sample, $form, $form_state);
+  }
+
+  drupal_goto('sample/' . $sample->sid);
+}
+
+/**
+ * hook permission
+ */
+function sample_permission() {
+  return array(
+    'view sample' => array(
+      'title' => t('View sample entity'),
+    ),
+    'add sample' => array(
+      'title' => t('Add sample entity'),
+    ),
+    'edit sample' => array(
+      'title' => t('Edit sample entity'),
+    ),
+  );
+}
+
+/**
+ * hook field extra fields, let the data items of this entity be managed and ordered as though they were fields
+ */
+function sample_field_extra_fields() {
+  $return['sample']['sample']['form'] = array(
+    'mech_name' => array(
+      'label' => t('Machine Name'),
+      'description' => t('Machine Name'),
+      'weight' => -20,
+    ),
+    'message' => array(
+      'label' => t('Message'),
+      'description' => t('Message'),
+      'weight' => -10,
+    ),
+  );
+  $return['sample']['sample']['display'] = $return['sample']['sample']['form'];
+  return $return;
+}

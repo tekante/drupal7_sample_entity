@@ -1,0 +1,34 @@
+name = Sample Entity
+description = Sample Entity Profile
+
+version = VERSION
+core = 7.x
+
+; start with standard
+dependencies[] = block
+dependencies[] = color
+dependencies[] = comment
+dependencies[] = contextual
+dependencies[] = dashboard
+dependencies[] = help
+dependencies[] = image
+dependencies[] = list
+dependencies[] = menu
+dependencies[] = number
+dependencies[] = options
+dependencies[] = path
+dependencies[] = taxonomy
+dependencies[] = search
+dependencies[] = shortcut
+dependencies[] = toolbar
+;dependencies[] = overlay
+dependencies[] = field_ui
+dependencies[] = file
+dependencies[] = rdf
+dependencies[] = simpletest
+dependencies[] = syslog
+; add in additional contrib
+dependencies[] = views
+dependencies[] = views_ui
+; the one for the blog
+dependencies[] = sample

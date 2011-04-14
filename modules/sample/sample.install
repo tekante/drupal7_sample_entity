@@ -1,0 +1,66 @@
+<?php
+
+function sample_schema() {
+  $schema = array();
+  $schema['sample'] = array(
+    'fields' => array(
+      'sid' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'description' => 'Primary ID of the table',
+      ),
+      'rev_id' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+        'description' => 'Revision ID',
+      ),
+      'mech_name' => array(
+        'type' => 'varchar',
+        'length' => 50,
+        'not null' => TRUE,
+        'description' => 'Machine name so that this can be made exportable',
+      ),
+      'message' => array(
+        'type' => 'varchar',
+        'length' => 50,
+        'not null' => TRUE,
+        'description' => 'Custom data stored by module',
+      ),
+    ),
+    'primary key' => array('sid'),
+  );
+
+  $schema['sample_revision'] = array(
+    'fields' => array(
+      'sid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'description' => 'Primary ID of the main table',
+      ),
+      'rev_id' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'description' => 'Revision ID',
+      ),
+      'mech_name' => array(
+        'type' => 'varchar',
+        'length' => 50,
+        'not null' => TRUE,
+        'description' => 'Machine name so that this can be made exportable',
+      ),
+      'message' => array(
+        'type' => 'varchar',
+        'length' => 50,
+        'not null' => TRUE,
+        'description' => 'Custom data stored by module',
+      ),
+    ),
+    'primary key' => array('rev_id'),
+  );
+  return $schema;
+}

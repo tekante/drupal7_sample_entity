@@ -220,10 +220,36 @@ function sample_view($sample) {
   // add in the renderable field data
   $build += field_attach_view($type, $sample, $view_mode);
 
+  /* the following build array coordinates with the sample_theme declaration
+   *
+   * the variable keys declared in the theme declaration for the value in
+   * #theme, sample in this case, will be used to pull values from the
+   * array under looking in for the key using #variable_name convention
+   */
+  $build = array(
+    '#theme' => 'sample',
+    '#sample' => $sample,
+    '#content' => $build,
+  );
   // allow other modules to affect display
   module_invoke_all('entity_view', $sample, 'sample', $view_mode);
   drupal_alter(array('entity_view'), $build, $sample);
   return $build;
+}
+
+/**
+ * hook_theme
+ */
+function sample_theme($existing, $type, $theme, $path) {
+  return array(
+    'sample' => array(
+      // sample is the entity object and content is a build array
+      // for any attached fields
+      'variables' => array('sample' => NULL, 'content' => array()),
+      'path' => $path . '/theme',
+      'template' => 'sample',
+    ),
+  );
 }
 
 /**

@@ -6,8 +6,10 @@
 function sample_entity_info() {
   return array(
     'sample' => array(
-      'label' => t('Sample Entity'),
-      //'controller class' => 'DrupalDefaultEntityController', // this is the default
+      'module' => 'sample', // entity module key, this allows the entity module to automatically describe the base table to views
+      'label' => t('Sample'),
+      'controller class' => 'EntityApiController', // use the controller provided by the entity module instead of the default
+      'entity class' => 'SampleEntity', // entity module key, for identifying the class responsible for this entity
       'base table' => 'sample',
       'revision table' => 'sample_revision',
       //'static cache' => TRUE, // this is the default
@@ -22,6 +24,10 @@ function sample_entity_info() {
         'revision' => 'rev_id', // if the entity keeps revisions, the property identifying the revision id
         //'bundle' => 'type', // if the entity has multiple bundles, the property that identifies the bundle, type is the bundle for the node entity as an example
       ),
+      'admin ui' => array( // entity module key
+        'path' => 'sample', // path that will be used for listing instances of this entity and as a base for adding, editing, deleting and cloning
+      ),
+      'access callback' => 'sample_access', // entity module key, access callback for this entity  
       /* if the paths defined in the bundle section contain wildcards indicating a loadable object this indicates the property
          of the bundle necessary to construct the real path
       'bundle keys' => array(
@@ -92,18 +98,6 @@ function sample_menu() {
       'page callback' => 'sample_admin',
       'access arguments' => array('administer site configuration'),
     ),
-    'sample' => array(
-      'title' => 'Sample Instances',
-      'description' => 'List all instances of this entity, this is admin/content for nodes',
-      'page callback' => 'sample_list',
-      'access arguments' => array('view sample'),
-    ),
-    'sample/add' => array(
-      'title' => 'Add a sample',
-      'description' => 'Add a new instance of this entity, this is node/add for nodes',
-      'page callback' => 'sample_add',
-      'access arguments' => array('add sample'),
-    ),
     'sample/%sample' => array(
       'title callback' => 'sample_title',
       'title arguments' => array(1),
@@ -112,19 +106,6 @@ function sample_menu() {
       'page arguments' => array(1),
       'access arguments' => array('view sample'),
       'type' => MENU_CALLBACK,
-    ),
-    'sample/%sample/view' => array(
-      'title' => 'View',
-      'type' => MENU_DEFAULT_LOCAL_TASK,
-      'weight' => -10,
-    ),
-    'sample/%sample/edit' => array(
-      'title' => 'Edit',
-      'description' => 'Edit an instance of this entity, this is node/$node/edit for nodes',
-      'page callback' => 'drupal_get_form',
-      'page arguments' => array('sample_form', 1),
-      'access arguments' => array('edit sample'),
-      'type' => MENU_LOCAL_TASK,
     ),
   );
 }
@@ -137,104 +118,13 @@ function sample_admin() {
 }
 
 /**
- * list all the instances of this entity
- */
-function sample_list() {
-  $samples = sample_load_multiple(FALSE); // load them all
-  $h = array(t('Name'), t('Message'));
-  $t = array();
-  foreach($samples as $s) {
-    $r = array();
-    $r[] = l($s->mech_name, 'sample/' . $s->sid);
-    $r[] = $s->message;
-    $t[] = $r;
-  }
-  return theme('table', array('header' => $h, 'rows' => $t));
-}
-
-/**
- * page for adding an instance of your entity
- */
-function sample_add() {
-  $sample = sample_default();
-  return drupal_get_form('sample_form', $sample);
-}
-
-/**
- * convenience function for creating a blank entity
- */
-function sample_default() {
-  $sample = new stdclass();
-  $sample->sid = NULL;
-  $sample->mech_name = NULL;
-  $sample->message = NULL;
-  return $sample;
-}
-
-/**
- * view your entity
+ * view your entity, wrapper for entity_view which doesn't accept single entities as input
  */
 function sample_view($sample) {
-  $view_mode = 'full';
   $type = 'sample';
   $bundle = 'sample';
-  $display = 'default';
-
-  // add additional view data for fields and entities that isn't normally pulled on a load
-  field_attach_prepare_view($type, array($sample->sid => $sample), $view_mode);
-  entity_prepare_view($type, array($sample->sid => $sample));
-
-  $build = array(
-    'mech_name' => array('#markup' => $sample->mech_name, '#prefix' => '<div>', '#suffix' => '</div>'),
-    'message' => array('#markup' => $sample->message, '#prefix' => '<div>', '#suffix' => '</div>'),
-  );
-
-  // honor custom settings for positioning on extra fields, this entire section
-  // can be dropped if this entity does not allow extra settings
-  $view_mode_settings = field_view_mode_settings($type, $bundle);
-  if (isset($view_mode_settings) && isset($view_mode_settings[$view_mode]) && $view_mode_settings[$view_mode]['custom_settings']) {
-    $display = $view_mode;
-  }
-  $bundle_settings = variable_get('field_bundle_settings', array());
-  // if no custom settings have been sved for this entity, load default info and build a structure
-  // in the form of the field_bundle_settings variable
-  if (!isset($bundle_settings) || !isset($bundle_settings[$type]) || !isset($bundle_settings[$type][$bundle])) {
-    $bundle_settings = field_info_extra_fields($type, $bundle, 'display');
-    $tmp = array();
-    foreach ($bundle_settings as $key => $data) {
-      $tmp[$type][$bundle]['extra_fields']['display'][$key][$display] = $data['display'][$display];
-    }
-    $bundle_settings = $tmp;
-  }
-  // pull the bundle settings and apply to each extra field in our build array
-  $extra_field_settings = $bundle_settings[$type][$bundle]['extra_fields']['display'];
-  foreach ($extra_field_settings as $key => $settings) {
-    if ($settings[$display]['visible'] === FALSE) {
-      unset($build[$key]);
-    }
-    else {
-      $build[$key]['#weight'] = $settings[$display]['weight'];
-    }
-  }
-
-  // add in the renderable field data
-  $build += field_attach_view($type, $sample, $view_mode);
-
-  /* the following build array coordinates with the sample_theme declaration
-   *
-   * the variable keys declared in the theme declaration for the value in
-   * #theme, sample in this case, will be used to pull values from the
-   * array under looking in for the key using #variable_name convention
-   */
-  $build = array(
-    '#theme' => 'sample',
-    '#sample' => $sample,
-    '#content' => $build,
-  );
-  // allow other modules to affect display
-  module_invoke_all('entity_view', $sample, 'sample', $view_mode);
-  drupal_alter(array('entity_view'), $build, $sample);
-  return $build;
+  $entities = array($sample->sid => $sample);
+  return entity_view($type, $entities);
 }
 
 /**
@@ -256,17 +146,32 @@ function sample_theme($existing, $type, $theme, $path) {
  * define a title callback specified in hook menu
  */
 function sample_title($sample) {
-  drupal_set_title(t('Sample @sample', array('@sample' => $sample->mech_name)));
+  drupal_set_title(entity_label('sample', $sample));
 }
 
 /**
  * form for adding/editing an entity
  */
-function sample_form($form, &$form_state, $sample) {
-  if ($sample->sid) {
+function sample_form($form, &$form_state, $sample, $op, $entity_type) {
+  if ($sample->sid && $op != 'clone') {
     $form['sid'] = array(
       '#type' => 'hidden',
       '#default_value' => $sample->sid,
+    );
+    // entity revision patch looks to the revision property on an entity to determine whether 
+    // to create a new revision, key the checkbox to make creating the entity from the form
+    // state values convenient
+    $form['revision'] = array(
+      '#type' => 'checkbox',
+      '#title' => t('New Revision'),
+      '#description' => t('Create a new revision'),
+    );
+  }
+
+  if ($sample->rev_id) {
+    $form['rev_id'] = array(
+      '#type' => 'hidden',
+      '#default_value' => $sample->rev_id,
     );
   }
 
@@ -298,11 +203,11 @@ function sample_form($form, &$form_state, $sample) {
  * validate callback for sample entity editing form
  */
 function sample_form_validate($form, &$form_state) {
-  if ($form_state['values']['sid']) {
+  if (!empty($form_state['values']['sid'])) {
     $sample = sample_load($form_state['values']['sid']);
   }
   else {
-    $sample = sample_default();
+    $sample = entity_create('sample', array());
   }
   field_attach_form_validate('sample', $sample, $form, $form_state);
 }
@@ -311,49 +216,35 @@ function sample_form_validate($form, &$form_state) {
  * the submit handler
  */
 function sample_form_submit($form, &$form_state) {
-  $sample = sample_default();
-  $update = NULL;
-  if (!empty($form_state['values']['sid'])) {
-    $update = 'sid';
-    $sample->sid = $form_state['values']['sid'];;
+  $sample = entity_create('sample', $form_state['values']);
+  // entity_create always returns a "new" object, make adjustments for that
+  if (isset($form_state['values']['sid']) && !empty($form_state['values']['sid'])) {
+    unset($sample->is_new);
   }
-
-  $sample->mech_name = $form_state['values']['mech_name'];
-  $sample->message = $form_state['values']['message'];
-
   field_attach_submit('sample', $sample, $form, $form_state);
-  // automatically revision every save
-  if ($update) {
-    drupal_write_record('sample_revision', $sample);
-    drupal_write_record('sample', $sample, $update);
-    field_attach_update('sample', $sample, $form, $form_state);
-  }
-  else {
-    drupal_write_record('sample', $sample);
-    drupal_write_record('sample_revision', $sample);
-    $update = 'sid';
-    drupal_write_record('sample', $sample, $update);
-    field_attach_insert('sample', $sample, $form, $form_state);
-  }
-
-  drupal_goto('sample/' . $sample->sid);
+  entity_get_controller('sample')->save($sample);
+  $form_state['redirect'] = sample_uri($sample);
 }
 
 /**
  * hook permission
  */
 function sample_permission() {
-  return array(
-    'view sample' => array(
-      'title' => t('View sample entity'),
-    ),
-    'add sample' => array(
-      'title' => t('Add sample entity'),
-    ),
-    'edit sample' => array(
-      'title' => t('Edit sample entity'),
-    ),
+  // structure permissions to make it easy for the access callback defined
+  // in sample_entity_info to coordinate with the ops that will be sent by
+  // entity module to this callback
+  $list = array('create' => 'Create new',
+    'update' => 'Edit any',
+    'delete' => 'Delete any',
+    'view' => 'View any',
   );
+  $perms = array();
+  foreach ($list as $op => $label) {
+    $perms[$op . ' sample'] = array(
+      'title' => t('@label sample', array('@label' => $label)),
+    );
+  }
+  return $perms;
 }
 
 /**
@@ -374,4 +265,11 @@ function sample_field_extra_fields() {
   );
   $return['sample']['sample']['display'] = $return['sample']['sample']['form'];
   return $return;
+}
+
+/**
+ * access callback defined in sample_entity_info, the entity module calls this when determining access
+ */
+function sample_access($op, $entity, $account = NULL, $entity_type = NULL) {
+  return user_access($op . ' ' . $entity_type, $account);
 }

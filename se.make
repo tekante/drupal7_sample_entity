@@ -15,3 +15,8 @@ projects[views][version] = 3.0-alpha1
 projects[ctools][subdir] = contrib
 projects[ctools][type] = module
 projects[ctools][version] = 1.0-alpha2
+
+projects[entity][subdir] = contrib
+projects[entity][version] = 1.0-beta8
+; patch for revisions
+projects[entity][patch][] = http://drupal.org/files/issues/996696-entity-api-revision-support.patch

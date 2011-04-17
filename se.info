@@ -28,6 +28,7 @@ dependencies[] = rdf
 dependencies[] = simpletest
 dependencies[] = syslog
 ; add in additional contrib
+dependencies[] = entity
 dependencies[] = views
 dependencies[] = views_ui
 ; the one for the blog

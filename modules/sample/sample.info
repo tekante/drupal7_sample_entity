@@ -1,2 +1,4 @@
 name = Entity Sample
 core = 7.x
+dependencies[] = entity
+files[] = includes/sample.entity.inc

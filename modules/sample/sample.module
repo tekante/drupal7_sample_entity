@@ -15,8 +15,8 @@ function sample_entity_info() {
       //'static cache' => TRUE, // this is the default
       //'field cache' => TRUE, // this is the default
       'load hook' => 'sample_load', // function to use to load data for this entity
-      'uri callback' => 'sample_uri', // given an entity, this function will return the data for constructing the path to the detail of the entity
-      //'label callback' => 'sample_label', // only needed if the label for the entity isn't a straight property
+      'uri callback' => 'entity_class_uri', // let the uri be determined by the defaultUri method of the entity's class
+      'label callback' => 'entity_class_label', // let the label be determined by the defaultLabel method of the entity's class
       'fieldable' => TRUE, // let this entity be extended with fields
       'entity keys' => array( // give field api the info it needs to interact with the entity
         'label' => 'mech_name', // the property that contains the name for each instance of this entity
@@ -121,10 +121,9 @@ function sample_admin() {
  * view your entity, wrapper for entity_view which doesn't accept single entities as input
  */
 function sample_view($sample) {
-  $type = 'sample';
-  $bundle = 'sample';
-  $entities = array($sample->sid => $sample);
-  return entity_view($type, $entities);
+  return $sample->view();
+  // show how theme('sample') can also be used
+  //return theme('sample', array('sample' => $sample, 'elements' => $sample->buildContent()));
 }
 
 /**
@@ -132,10 +131,21 @@ function sample_view($sample) {
  */
 function sample_theme($existing, $type, $theme, $path) {
   return array(
+    // the entity theme adds theme hook suggestions that allow entity specific
+    // themes to get subbed in, see template_preprocess_entity, suggestions are
+    // of form: type, type__bundle, type__bundle__view_mode, type__id
+    // when taking advantage of the entity theme and suggestions
+    // preprocessing of entity specific variables needs to happen in
+    // hook_preprocess_entity, search for sample_sample_view_alter to see how to
+    // switch so that preprocessing happens in hook_preprocess_sample
     'sample' => array(
       // sample is the entity object and content is a build array
       // for any attached fields
-      'variables' => array('sample' => NULL, 'content' => array()),
+      // this is set up so that someone calling theme('sample' . . . can
+      // get the same variables in the template that may be expected after
+      // entity theme preprocessing, coordinates with template_preprocess_sample
+      // template_preprocess_entity
+      'variables' => array('sample' => NULL, 'view_mode' => 'full', 'elements' => array()),
       'path' => $path . '/theme',
       'template' => 'sample',
     ),
@@ -143,10 +153,49 @@ function sample_theme($existing, $type, $theme, $path) {
 }
 
 /**
+ * hook preprocess, set up so that theme('sample', ...) can be used, generally
+ * this won't be necessary as the entity theme and preprocessing offers
+ * good access to entity type specific templates
+ * see template_preprocess_entity for origin of this code
+ */
+function template_preprocess_sample(&$variables) {
+  $entity_type = 'sample';
+  $variables['entity_type'] = $entity_type;
+  $entity = $variables['sample'];
+  $info = entity_get_info($entity_type);
+
+  $variables['title'] = check_plain(entity_label($entity_type, $entity));
+  $uri = entity_uri($entity_type, $entity);
+  $variables['url'] = $uri ? url($uri['path'], $uri['options']) : FALSE;
+  $variables['page'] = $uri && $uri['path'] == $_GET['q'];
+
+  $variables['content'] = array();
+  foreach (element_children($variables['elements']) as $key) {
+    $variables['content'][$key] = $variables['elements'][$key];
+  }
+
+  if (!empty($info['fieldable'])) {
+    // Make the field variables available with the appropriate language.
+    field_attach_preprocess($entity_type, $entity, $variables['content'], $variables);
+  }
+  list(, , $bundle) = entity_extract_ids($entity_type, $entity);
+
+  // Gather css classes.
+  $variables['classes_array'][] = drupal_html_class('entity-' . $entity_type);
+  $variables['classes_array'][] = drupal_html_class($entity_type . '-' . $bundle);
+
+  // Add RDF type and about URI.
+  if (module_exists('rdf')) {
+    $variables['attributes_array']['about'] = empty($uri['path']) ? NULL: url($uri['path']);
+    $variables['attributes_array']['typeof'] = empty($entity->rdf_mapping['rdftype']) ? NULL : $entity->rdf_mapping['rdftype'];
+  }
+}
+
+/**
  * define a title callback specified in hook menu
  */
 function sample_title($sample) {
-  drupal_set_title(entity_label('sample', $sample));
+  drupal_set_title($sample->label());
 }
 
 /**
@@ -222,9 +271,17 @@ function sample_form_submit($form, &$form_state) {
     unset($sample->is_new);
   }
   field_attach_submit('sample', $sample, $form, $form_state);
-  entity_get_controller('sample')->save($sample);
-  $form_state['redirect'] = sample_uri($sample);
+  $sample->save();
+  $form_state['redirect'] = $sample->uri();
 }
+
+/**
+ * alter build array to switch the theme, form is {$entity_type}_view
+ * if doing this refer to template_preprocess_entity
+function sample_sample_view_alter(&$build, $entity_type) {
+  $build['#theme'] = $entity_type;
+}
+ */
 
 /**
  * hook permission

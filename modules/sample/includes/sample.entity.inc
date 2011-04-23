@@ -11,7 +11,7 @@ class SampleEntity extends Entity {
    * into place, for this entity this is done by putting each data item listed in
    * the extra fields into place
    */
-  public function buildContent($view_mode, $langcode = NULL) {
+  public function buildContent($view_mode = 'full', $langcode = NULL) {
     $content = array();
     $bundle = 'sample';
     $display_settings = field_extra_fields_get_display($this->entityType, $bundle, $view_mode);
@@ -34,5 +34,19 @@ class SampleEntity extends Entity {
         $this->$prop = NULL;
       }
     }
+  }
+
+  /**
+   * provide a default uri so entity info can use entity_class_uri as the uri callback
+   */
+  public function defaultUri() {
+    return array('path' => $this->entityType . '/' . $this->identifier());
+  }
+
+  /**
+   * provide a default label so entity info can use entity_class_label as the label callback
+   */
+  public function defaultLabel() {
+    return 'Sample ' . $this->identifier();
   }
 }

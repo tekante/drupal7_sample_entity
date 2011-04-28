@@ -7,7 +7,7 @@ function sample_entity_info() {
   return array(
     'sample' => array(
       'module' => 'sample', // entity module key, this allows the entity module to automatically describe the base table to views
-      'label' => t('Sample'),
+      'label' => t('Sample'), // if using admin ui, this will show up as a tab/link for getting to your entities from the root of the path defined under admin ui below
       'controller class' => 'EntityApiController', // use the controller provided by the entity module instead of the default
       'entity class' => 'SampleEntity', // entity module key, for identifying the class responsible for this entity
       'base table' => 'sample',
@@ -26,6 +26,8 @@ function sample_entity_info() {
       ),
       'admin ui' => array( // entity module key
         'path' => 'sample', // path that will be used for listing instances of this entity and as a base for adding, editing, deleting and cloning
+        'file' => 'includes/sample.form.inc', // allow form definitions for add/edit screens to be moved out to other files
+        //'controller class' => 'SetThisIfYouWantYourOwnClass',
       ),
       'access callback' => 'sample_access', // entity module key, access callback for this entity  
       /* if the paths defined in the bundle section contain wildcards indicating a loadable object this indicates the property
@@ -122,7 +124,14 @@ function sample_admin() {
  */
 function sample_view($sample) {
   return $sample->view();
-  // show how theme('sample') can also be used
+  // show how theme('sample') could also be used
+  // note that because of the difference between returning a render array
+  // and a string from theme there is a bit of a disconnect in the two methods
+  // and though there is a declared sample theme item it's really only meant
+  // to be used due to the theme hook suggestions that come from
+  // the entity theme preprocessing, included here to illustrate the difference
+  // between the two methods and to allow for experimentation for learning the
+  // differences that come with the use of render arrays
   //return theme('sample', array('sample' => $sample, 'elements' => $sample->buildContent()));
 }
 
@@ -145,7 +154,7 @@ function sample_theme($existing, $type, $theme, $path) {
       // get the same variables in the template that may be expected after
       // entity theme preprocessing, coordinates with template_preprocess_sample
       // template_preprocess_entity
-      'variables' => array('sample' => NULL, 'view_mode' => 'full', 'elements' => array()),
+      'render element' => 'elements',
       'path' => $path . '/theme',
       'template' => 'sample',
     ),
@@ -156,128 +165,46 @@ function sample_theme($existing, $type, $theme, $path) {
  * hook preprocess, set up so that theme('sample', ...) can be used, generally
  * this won't be necessary as the entity theme and preprocessing offers
  * good access to entity type specific templates
- * see template_preprocess_entity for origin of this code
+ * included for experimentation with the differences between theming and render arrays
  */
 function template_preprocess_sample(&$variables) {
-  $entity_type = 'sample';
-  $variables['entity_type'] = $entity_type;
-  $entity = $variables['sample'];
-  $info = entity_get_info($entity_type);
+  // adjust the data to be in a format template_preprocess_entity can make use of it with
+  $variables['elements']['#entity'] = $variables['sample'];
+  $variables['elements']['#view_mode'] = !empty($variables['view_mode']) ? $variables['view_mode'] : 'full';
+  template_preprocess_entity($variables);
+}
 
-  $variables['title'] = check_plain(entity_label($entity_type, $entity));
-  $uri = entity_uri($entity_type, $entity);
-  $variables['url'] = $uri ? url($uri['path'], $uri['options']) : FALSE;
-  $variables['page'] = $uri && $uri['path'] == $_GET['q'];
+/**
+ * hook preprocess, this is the preprocessing function that needs to be used
+ * when using theme('sample') style calls
+ * included for illustration of the differences between theming and render arrays
+ */
+function sample_preprocess_sample(&$variables) {
+}
 
-  $variables['content'] = array();
-  foreach (element_children($variables['elements']) as $key) {
-    $variables['content'][$key] = $variables['elements'][$key];
-  }
-
-  if (!empty($info['fieldable'])) {
-    // Make the field variables available with the appropriate language.
-    field_attach_preprocess($entity_type, $entity, $variables['content'], $variables);
-  }
-  list(, , $bundle) = entity_extract_ids($entity_type, $entity);
-
-  // Gather css classes.
-  $variables['classes_array'][] = drupal_html_class('entity-' . $entity_type);
-  $variables['classes_array'][] = drupal_html_class($entity_type . '-' . $bundle);
-
-  // Add RDF type and about URI.
-  if (module_exists('rdf')) {
-    $variables['attributes_array']['about'] = empty($uri['path']) ? NULL: url($uri['path']);
-    $variables['attributes_array']['typeof'] = empty($entity->rdf_mapping['rdftype']) ? NULL : $entity->rdf_mapping['rdftype'];
+/**
+ * hook preprocess, this is the preprocessing function that needs to be used
+ * when using $entity->view() to return a render array
+ */
+function sample_preprocess_entity(&$variables) {
+  if ($variables['elements']['#entity_type'] == 'sample') {
   }
 }
 
 /**
- * define a title callback specified in hook menu
+ * define a title callback specified in hook menu, set the title of the page
+ * and return it so breadcrumbs work
  */
 function sample_title($sample) {
-  drupal_set_title($sample->label());
-}
-
-/**
- * form for adding/editing an entity
- */
-function sample_form($form, &$form_state, $sample, $op, $entity_type) {
-  if ($sample->sid && $op != 'clone') {
-    $form['sid'] = array(
-      '#type' => 'hidden',
-      '#default_value' => $sample->sid,
-    );
-    // entity revision patch looks to the revision property on an entity to determine whether 
-    // to create a new revision, key the checkbox to make creating the entity from the form
-    // state values convenient
-    $form['revision'] = array(
-      '#type' => 'checkbox',
-      '#title' => t('New Revision'),
-      '#description' => t('Create a new revision'),
-    );
-  }
-
-  if ($sample->rev_id) {
-    $form['rev_id'] = array(
-      '#type' => 'hidden',
-      '#default_value' => $sample->rev_id,
-    );
-  }
-
-  $form['mech_name'] = array(
-    '#type' => 'textfield',
-    '#title' => t('Machine Name'),
-    '#description' => t('The machine name for this instance'),
-    '#max_length' => 50,
-    '#default_value' => $sample->mech_name,
-  );
-
-  $form['message'] = array(
-    '#type' => 'textfield',
-    '#title' => t('Message'),
-    '#description' => t('Some data you care about saving'),
-    '#max_length' => 50,
-    '#default_value' => $sample->message,
-  );
-
-  field_attach_form('sample', $sample, $form, $form_state);
-  $form['submit'] = array(
-    '#type' => 'submit',
-    '#default_value' => t('Save'),
-  );
-  return $form;
-}
-
-/**
- * validate callback for sample entity editing form
- */
-function sample_form_validate($form, &$form_state) {
-  if (!empty($form_state['values']['sid'])) {
-    $sample = sample_load($form_state['values']['sid']);
-  }
-  else {
-    $sample = entity_create('sample', array());
-  }
-  field_attach_form_validate('sample', $sample, $form, $form_state);
-}
-
-/**
- * the submit handler
- */
-function sample_form_submit($form, &$form_state) {
-  $sample = entity_create('sample', $form_state['values']);
-  // entity_create always returns a "new" object, make adjustments for that
-  if (isset($form_state['values']['sid']) && !empty($form_state['values']['sid'])) {
-    unset($sample->is_new);
-  }
-  field_attach_submit('sample', $sample, $form, $form_state);
-  $sample->save();
-  $form_state['redirect'] = $sample->uri();
+  $title = $sample->label();
+  drupal_set_title($title);
+  return $title;
 }
 
 /**
  * alter build array to switch the theme, form is {$entity_type}_view
  * if doing this refer to template_preprocess_entity
+ * shows mechanism of skipping the entity theme if desired
 function sample_sample_view_alter(&$build, $entity_type) {
   $build['#theme'] = $entity_type;
 }
@@ -326,6 +253,7 @@ function sample_field_extra_fields() {
 
 /**
  * access callback defined in sample_entity_info, the entity module calls this when determining access
+ * and using the admin ui functionality
  */
 function sample_access($op, $entity, $account = NULL, $entity_type = NULL) {
   return user_access($op . ' ' . $entity_type, $account);
